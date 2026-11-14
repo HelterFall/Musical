@@ -18,6 +18,11 @@ data class Playlist(val id: Long, val name: String)
 class LibraryDb(context: Context) :
     SQLiteOpenHelper(context, "musical.db", null, 1) {
 
+    override fun onConfigure(db: SQLiteDatabase) {
+        super.onConfigure(db)
+        db.setForeignKeyConstraintsEnabled(true)
+    }
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             """
@@ -88,6 +93,29 @@ class LibraryDb(context: Context) :
             put("lyrics", lyrics)
         }
         return db.insert("tracks", null, values)
+    }
+
+    fun updateTrack(id: Long, title: String, author: String, lyrics: String): Boolean {
+        val db = writableDatabase
+        val authorId = findOrCreateAuthor(db, author)
+        val values = ContentValues().apply {
+            put("title", title.trim().ifBlank { "Без названия" })
+            put("author_id", authorId)
+            put("lyrics", lyrics)
+        }
+        return db.update("tracks", values, "id = ?", arrayOf(id.toString())) > 0
+    }
+
+    fun deleteTrack(id: Long): Boolean {
+        return writableDatabase.delete("tracks", "id = ?", arrayOf(id.toString())) > 0
+    }
+
+    fun countTracksUsingUri(uri: String): Int {
+        readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM tracks WHERE uri = ?", arrayOf(uri)
+        ).use { cursor ->
+            return if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
     }
 
     fun addAuthor(name: String): Boolean {
