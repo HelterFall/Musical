@@ -261,6 +261,23 @@ class MainActivity : Activity() {
             })
             card.addView(actions)
 
+            val manageRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(5), 0, 0)
+            }
+            manageRow.addView(makeButton("Изменить", 0xFFF1EFF5.toInt(), TEXT) {
+                editTrack(track)
+            })
+            manageRow.addView(makeButton("Удалить", 0xFFFFECEC.toInt(), 0xFFB3261E.toInt()) {
+                confirmDeleteTrack(track)
+            }.apply {
+                layoutParams = LinearLayout.LayoutParams(-2, dp(42)).apply {
+                    leftMargin = dp(7)
+                }
+            })
+            card.addView(manageRow)
+
             trackList.addView(card, cardParams)
         }
     }
@@ -410,6 +427,69 @@ class MainActivity : Activity() {
             .setPositiveButton("Сохранить") { _, _ ->
                 val added = database.addAuthor(input.text.toString())
                 toast(if (added) "Автор добавлен" else "Введите имя или автор уже существует")
+            }
+            .show()
+    }
+
+    private fun editTrack(track: Track) {
+        val form = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(8), dp(22), 0)
+        }
+        val titleInput = makeInput("Название песни").apply { setText(track.title) }
+        val authorInput = makeInput("Автор / исполнитель").apply { setText(track.author) }
+        val lyricsInput = makeInput("Текст песни").apply {
+            setText(track.lyrics)
+            minLines = 4
+            maxLines = 8
+            gravity = Gravity.TOP
+        }
+        form.addView(titleInput)
+        form.addView(authorInput)
+        form.addView(lyricsInput)
+
+        AlertDialog.Builder(this)
+            .setTitle("Изменить песню")
+            .setView(form)
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Сохранить") { _, _ ->
+                if (database.updateTrack(
+                    track.id,
+                    titleInput.text.toString(),
+                    authorInput.text.toString(),
+                    lyricsInput.text.toString()
+                )) {
+                    refreshLibrary()
+                    toast("Изменения сохранены")
+                } else {
+                    toast("Не удалось изменить песню")
+                }
+            }
+            .show()
+    }
+
+    private fun confirmDeleteTrack(track: Track) {
+        AlertDialog.Builder(this)
+            .setTitle("Удалить песню?")
+            .setMessage("«${track.title}» будет удалена из библиотеки и всех плейлистов. Исходный аудиофайл останется на месте.")
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Удалить") { _, _ ->
+                if (currentTrackId == track.id) releasePlayer()
+                if (database.deleteTrack(track.id)) {
+                    if (database.countTracksUsingUri(track.uri) == 0) {
+                        try {
+                            contentResolver.releasePersistableUriPermission(
+                                Uri.parse(track.uri), Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            )
+                        } catch (_: Exception) {
+                            // The permission may already have been released.
+                        }
+                    }
+                    refreshLibrary()
+                    toast("Песня удалена из Musical")
+                } else {
+                    toast("Не удалось удалить песню")
+                }
             }
             .show()
     }
